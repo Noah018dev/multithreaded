@@ -18,8 +18,22 @@ def setdebug() :
 class TerminatedExit(SystemExit) : ...
 
 class Config() :
+    '''Config for the multithreaded library.'''
     def __init__(self):
-        self.exit_break_mode : Literal['terminate', 'confirm', 'suppress'] = 'confirm'
+        self._exit_break_mode : Literal['terminate', 'confirm', 'suppress'] = 'confirm'
+    
+    @property
+    def exit_break_mode(self) -> Literal['terminate', 'confirm','suppress'] :
+        '''Determines what happens when you press CTRL+C while non-daemon threads are still running.
+        
+        terminate: exit immediately
+        confirm: ask for confirmation before exiting
+        suppress: do not ask for confirmation and continue'''
+        return self._exit_break_mode
+
+    @exit_break_mode.setter
+    def exit_break_mode(self, value : Literal['terminate', 'confirm','suppress']) :
+        self._exit_break_mode = value    
 
 _thread_data : dict[int, dict] = {}
 thread_handles : dict[int, dict] = {}
@@ -33,6 +47,7 @@ multithreaded_config = Config()
 terminating_threads = []
 
 def exiting() -> bool :
+    'Returns if the current thread is exiting. This could be if the main thread is no longer running, or if this thread has been terminated non-forcefully.'
     if get_ident() in terminating_threads :
         return True
     return _exiting
@@ -99,7 +114,16 @@ def _get_thread_data(thread_class) -> dict :
     return thread_handles[thread_assignments[thread_class]]
 
 class Thread() :
+    '*The main attraction.* The docstring is in the constructor!'
     def __init__(self, target : Callable, *args : tuple, kwargs : dict = {}, daemon : bool = False, capture_exc : bool = True) :
+        '''Thread class constructor. Arguments :
+        
+        target : callable, the function to be called in the thread.
+        args : pass anything after the target and it'll be the argument for the function.
+        kwargs : the keyword arguments for the function.
+        daemon : if this is True, the process will exit even if this thread is still running.
+        capture_exc : if this is True, exceptions during the execution of the target function will be captured and stored in the thread data. otherwise, they will be propagated.
+        '''
         global thread_assignments, thread_data, thread_handles, used_handles
 
         thread_num = 0
@@ -129,6 +153,8 @@ class Thread() :
         }
     
     def dispose(self) :
+        '*THIS DOES NOT STOP THE THREAD, IT MAY BREAK IT*, it just deletes the handler for the Thread. Use this if you want to cleanup the thread if you don\'t need it anymore.'
+
         logger.info(f'Disposing of thread {thread_assignments[self]}.')
 
         if self.running :
@@ -137,7 +163,12 @@ class Thread() :
         del thread_handles[thread_assignments[self]]
     
     def start(self) :
+        'Starts the thread with target(*args, **kwargs).'
+
         global wait_thread_init
+
+        if self.started :
+            raise RuntimeError('Thread is already started.')
 
         logger.debug(f'Starting thread {thread_assignments[self]}, you will (hopefully) see another message shortly.')
 
@@ -145,6 +176,8 @@ class Thread() :
         start_new_thread(_thread_runner, (thread_assignments[self],))
     
     def join(self, timeout : float = -1) :
+        'Waits until the thread is finished running. Raises TimeoutError if the thread is still running after the timeout in seconds.'
+
         logger.info(f'Thread with native_id {get_ident()} joining thread with native id {self.native_id}...')
 
         while wait_thread_init > 0 :
@@ -162,11 +195,13 @@ class Thread() :
                 
                 if time >= timeout :
                     logger.critical('Join timeout is over, and thread is still running! Panic!')
-                    raise RuntimeError('Still running after timeout.')
+                    raise TimeoutError('Still running after timeout.')
         
         logger.info(f'Thread with native_id {get_ident()} has finished joining thread with native id {self.native_id}.')
     
     def terminate(self, timeout : float = 0, forceful : bool = False) -> bool :
+        'Terminate or stop the thread. It will raise the exiting flag for the thread, and returns True if the thread is still running. If forceful is set, the thread will be terminated.'
+
         wait_until(lambda: wait_thread_init == 0)
 
         if not self.running :
@@ -184,70 +219,86 @@ class Thread() :
             thread_handles[thread_assignments[self]]['flags']['running'] = False
             thread_handles[thread_assignments[self]]['flags']['crashed'] = True
             thread_handles[thread_assignments[self]]['exc_info'] = TerminatedExit()
+        
+        return self.running
             
 
     @property
     def flags(self) :
+        'The thread flags. I recommend using the properties, not the dict.'
         return _get_thread_data(self)['flags']
     
     @property
     def running(self) :
+        'Returns True if the thread is running.'
         return self.flags['running']
     
     @property
     def started(self) :
+        'Returns True if the thread has started.'
         return self.flags['started']
     
     @property
     def finished(self) :
+        'Returns True if the thread has finished execution.'
         return self.flags['finished']
     
     @property
     def crashed(self) :
+        'Returns True if the thread has crashed.'
         return self.flags['crashed']
     
     @property
     def daemon(self) :
+        'Returns True if the thread is a daemon thread.'
         return self.flags['daemon']
     
     @property
     def execution_data(self) :
+        'The execution data. I recommend using the properties, not the dict.'
         return _get_thread_data(self)['execution']
     
     @property
     def native_id(self) :
+        'The native id of the thread.'
         return _get_thread_data(self)['native_id']
    
     @property
     def target(self) :
+        'The target function for the thread.'
         return self.execution_data['target']
     
     @property
     def arguments(self) :
+        'The arguments for the target function.'
         return self.execution_data['args']
     
     @property
     def kwarguments(self) :
+        'The keyword arguments for the target function.'
         return self.execution_data['kwargs']
     
     @property
     def output(self) :
+        'The output of the target function. Raises RuntimeError if the thread has not finished execution.'
         if not self.finished :
             raise RuntimeError('The thread has not finished execution, cannot get output.')
         
         return _get_thread_data(self)['output']
     
     def raise_exc(self) :
+        'Raises the stored exception if any.'
         if _get_thread_data(self)['exc_info'] is not None :
             raise _get_thread_data(self)['exc_info']
     
     @property
     def locals(self) :
+        'The locals of the thread. Raises RuntimeError if the thread has not started yet, or if the thread has finished execution.'
         if self.native_id is None :
             raise RuntimeError('Thread not started yet, do not have the locals for it.')
 
         return _DictProxy('_thread_data', self.native_id)
-    
+
 
 @atexit.register
 def _wait_for_threads() :
@@ -279,6 +330,7 @@ def _wait_for_threads() :
 
 
 def stop_all() :
+    'Does standard exit procedures.'
     _wait_for_threads()
     if get_ident() == main_thread :
         raise SystemExit
@@ -287,11 +339,13 @@ def stop_all() :
     raise SystemExit
 
 def force_stop_all() :
+    'Exits the process, and doesn\'t wait for any threads to finish.'
     atexit.unregister(_wait_for_threads)
     interrupt_main(1)
     raise SystemExit
 
 def thread_data() :
+    'Returns the thread data for the current thread. This is local- per thread.'
     if get_ident() == main_thread :
         return _BasicDictProxy('main_thread_data')
     
@@ -304,6 +358,7 @@ highest_ids : dict = {}
 
 @call_lock
 def id_finder(channel : int) -> int :
+    'Finds the highest id for the given channel.'
     if not channel in highest_ids :
         highest_ids[channel] = -1
     
@@ -312,12 +367,15 @@ def id_finder(channel : int) -> int :
     return highest_ids[channel]
 
 class ThreadPool() :
-    def __init__(self, task_queue : list[Callable[[None], None]], thread_count : int) :
-        self.task_queue = task_queue
+    def __init__(self, thread_count : int) :
+        'Create a new thread pool. Use the function id_finder to find an id for each thread. Return values are NOT supported.'
+        self.task_queue = []
         self.count = thread_count
         self.running = False
 
     def start_threads(self) :
+        'Starts all of the threads.'
+
         self.running = True
         self._init_barrier = Barrier(self.count)
         self._next_task = [Condition()]
@@ -325,6 +383,8 @@ class ThreadPool() :
             Thread(_thread_pool_worker).start()
     
     def add_task(self, function : Callable) :
+        'Adds a function for all of the threads to execute.'
+
         self._next_task.append(function)
         self._next_task.append(Condition())
         self._next_task[-3].trigger()
@@ -336,3 +396,21 @@ def _thread_pool_worker(pool : ThreadPool) :
 
 def _get_global_name(name : str) -> object :
     return globals()[name]
+
+class Counter() :
+    def __init__(self) :
+        'A thread-safe counter.'
+        self._value = 0
+        self._lock = Lock()
+    
+    @property
+    def value(self) -> int :
+        'Acquires a lock, then returns the value.'
+        with self._lock :
+            return self._value
+    
+    @property
+    def increment(self) -> None :
+        'Acquires a lock, then increments the value.'
+        with self._lock :
+            self._value += 1

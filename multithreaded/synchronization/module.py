@@ -7,6 +7,8 @@ function_locks = {}
 WaitOnCondition: TypeAlias = Callable[[None], bool]
 
 def call_lock(func : Callable) :
+    'Acuqires a lock, runs the function, then releases the lock.'
+
     def wrapper(*args, **kwargs) :
         if func in function_locks :
             while function_locks[func] :
@@ -20,6 +22,7 @@ def call_lock(func : Callable) :
 
 class Mutex() :
     def __init__(self) :
+        'Basic lock implementation.'
         self.locked = False
     
     def acquire(self) :
@@ -39,11 +42,15 @@ class Mutex() :
 
 
 def wait_until(condition : Callable[[None], bool] | WaitOnCondition) :
+    'Waits until the return value of the condition is True.'
+
     while not condition() :
         sleep(0.05)
 
 class Lock(Mutex) :
+    'Basic lock impementation; this may as well be an alias for Mutex.'
     def __init__(self):
+        'Basic lock impementation; this may as well be an alias for Mutex.'
         super().__init__()
 
 class Condition() :
