@@ -4,7 +4,7 @@ from time import sleep
 from typing import Literal
 from contextlib import suppress
 from stop_thread import stop_thread
-from .synchronization import *
+from .synchronization.module import *
 from logzero import loglevel, logger
 from sys import flags
 import atexit

@@ -14,9 +14,9 @@ from .multithreaded import (Thread, exiting, stop_all, force_stop_all,
                             setdebug)
 
 from ._mt_primatives import (to_multithreaded, to_threading)
-from . import communication
-from . import synchronization
-from .synchronization import *
+from .communication import module as communication
+from .synchronization import module as synchronization
+from .synchronization.module import *
 
 
 # Will be removed in version 0.1.0, as well as merging .mt_primatives with .multithreaded.
