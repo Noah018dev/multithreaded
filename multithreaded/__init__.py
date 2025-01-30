@@ -64,6 +64,6 @@ __all__ = ['Thread', 'exiting', 'stop_all', 'force_stop_all',
            'to_threading', 'communication',
            'synchronization', 'setdebug']
 
-__version__ = '0.0.3'
+__version__ = '0.0.4'
 __name__ = 'multithreaded'
 
