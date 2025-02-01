@@ -7,6 +7,7 @@ from stop_thread import stop_thread
 from .synchronization.module import *
 from logzero import loglevel, logger
 from sys import flags
+from threading import Thread as threading_Thread
 import atexit
 
 
@@ -455,3 +456,12 @@ def await_call(function : Callable[[object], Promise], *args, **kwargs) -> objec
     promise._thread.join()
 
     return promise.value
+
+def to_threading(thread : Thread) -> threading_Thread :
+    _thread = threading_Thread(target=thread.target, args=thread.arguments, kwargs=thread.kwarguments, daemon=thread.daemon)
+    thread.dispose()
+    return _thread
+
+def to_multithreaded(thread : threading_Thread) -> Thread :
+    _thread = Thread(thread._target, thread._args, thread._kwargs, thread.daemon)
+    return _thread
