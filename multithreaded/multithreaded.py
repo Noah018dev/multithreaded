@@ -11,7 +11,7 @@ from threading import Thread as threading_Thread
 import atexit
 
 
-loglevel(9999999) # just disable the logger idk
+loglevel(99999987) # just disable the logger idk
 
 def setdebug() :
     loglevel(1)
