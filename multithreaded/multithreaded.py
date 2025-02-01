@@ -45,6 +45,7 @@ main_thread_data = {}
 wait_thread_init = 0
 multithreaded_config = Config()
 terminating_threads = []
+main_thread_running = True
 
 def exiting() -> bool :
     'Returns if the current thread is exiting. This could be if the main thread is no longer running, or if this thread has been terminated non-forcefully.'
@@ -302,9 +303,10 @@ class Thread() :
 
 @atexit.register
 def _wait_for_threads() :
-    global _exiting
+    global _exiting, main_thread_running
 
     _exiting = True
+    main_thread_running = False
     confirm = 0
 
     while wait_thread_init > 0 :
@@ -414,3 +416,42 @@ class Counter() :
         'Acquires a lock, then increments the value.'
         with self._lock :
             self._value += 1
+    
+    def set_counter(self, value : int) -> None :
+        'Acquires a lock, then sets the value.'
+        with self._lock :
+            self._value = value
+
+class PromiseNotResolved(object): pass
+
+class Promise() :
+    def __init__(self, function : Callable, *args, **kwargs) :
+        'Promise object. Pass in a function and it will start running.'
+        self._thread = Thread(function, *args, kwargs=kwargs)
+        self._thread.start()
+    
+    @property
+    def value(self) -> object :
+        'Returns the value of the function, or, if not done, returns PromiseNotResolved.'
+
+        if self._thread.crashed :
+            self._thread.raise_exc()
+        
+        if self._thread.finished :
+            return self._thread.output
+        
+        return PromiseNotResolved()
+
+def run_async(function : Callable) -> Callable[[object], Promise] :
+    'Wraps a function in a Promise object.'
+    def wrapper(*args, **kwargs) -> Promise :
+        return Promise(function, *args, **kwargs)
+    return wrapper
+
+def await_call(function : Callable[[object], Promise], *args, **kwargs) -> object :
+    'Awaits an async function to be called with @run_async.'
+
+    promise = function(*args, **kwargs)
+    promise._thread.join()
+
+    return promise.value

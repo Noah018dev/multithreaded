@@ -11,7 +11,8 @@ from .multithreaded import (Thread, exiting, stop_all, force_stop_all,
                             thread_data, Barrier, call_lock, wait_until, 
                             multithreaded_config, Config, Condition, 
                             Semaphore, BoundedSemaphore, id_finder,
-                            setdebug)
+                            setdebug, await_call, run_async, Promise,
+                            PromiseNotResolved)
 
 from ._mt_primatives import (to_multithreaded, to_threading)
 from .communication import module as communication
@@ -62,7 +63,8 @@ __all__ = ['Thread', 'exiting', 'stop_all', 'force_stop_all',
            'Condition', 'Semaphore', 'BoundedSemaphore', 
            'id_finder', 'Mutex', 'to_multithreaded', 
            'to_threading', 'communication',
-           'synchronization', 'setdebug']
+           'synchronization', 'setdebug', 'await_call',
+           'run_async', 'Promise', 'PromiseNotResolved']
 
 __version__ = '0.0.5'
 __name__ = 'multithreaded'
