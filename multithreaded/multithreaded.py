@@ -428,7 +428,7 @@ class PromiseNotResolved(object): pass
 class Promise() :
     def __init__(self, function : Callable, *args, **kwargs) :
         'Promise object. Pass in a function and it will start running.'
-        self._thread = Thread(function, *args, kwargs=kwargs)
+        self._thread = Thread(function, *args, kwargs=kwargs, daemon=True)
         self._thread.start()
     
     @property
@@ -452,7 +452,14 @@ def run_async(function : Callable) -> Callable[[object], Promise] :
 def await_call(function : Callable[[object], Promise], *args, **kwargs) -> object :
     'Awaits an async function to be called with @run_async.'
 
+    if isinstance(function, Promise) :
+        raise TypeError('Pass the the function, not it\'s return value!')
+
     promise = function(*args, **kwargs)
+
+    if not isinstance(promise, Promise) :
+        raise TypeError('The function isn\'t async!')
+
     promise._thread.join()
 
     return promise.value
