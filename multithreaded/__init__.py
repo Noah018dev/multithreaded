@@ -13,7 +13,8 @@ from .multithreaded import (Thread, exiting, stop_all, force_stop_all,
                             Semaphore, BoundedSemaphore, id_finder,
                             setdebug, await_call, run_async, Promise,
                             PromiseNotResolved, to_threading, 
-                            to_multithreaded)
+                            to_multithreaded, EventTrigger,
+                            ScheduleHandler, schedule)
 
 from .communication import module as communication
 from .synchronization import module as synchronization
@@ -30,8 +31,9 @@ __all__ = ['Thread', 'exiting', 'stop_all', 'force_stop_all',
            'id_finder', 'Mutex', 'to_multithreaded', 
            'to_threading', 'communication',
            'synchronization', 'setdebug', 'await_call',
-           'run_async', 'Promise', 'PromiseNotResolved']
+           'run_async', 'Promise', 'PromiseNotResolved',
+           'EventTrigger', 'ScheduleHandler', 'schedule']
 
-__version__ = '0.0.5'
+__version__ = '0.0.6'
 __name__ = 'multithreaded'
 

@@ -1,17 +1,16 @@
 from _thread import start_new_thread, get_ident, interrupt_main
 from collections.abc import Callable
 from time import sleep
-from typing import Literal
+from typing import Literal, overload
 from contextlib import suppress
 from stop_thread import stop_thread
 from .synchronization.module import *
 from logzero import loglevel, logger
-from sys import flags
 from threading import Thread as threading_Thread
 import atexit
 
 
-loglevel(99999988) # just disable the logger idk
+loglevel(99999999) # just disable the logger idk
 
 def setdebug() :
     loglevel(1)
@@ -38,7 +37,7 @@ class Config() :
 
 _thread_data : dict[int, dict] = {}
 thread_handles : dict[int, dict] = {}
-thread_assignments : dict[object, int] = {}
+thread_assignments : dict["Thread", int] = {}
 used_handles = []
 _exiting = False
 main_thread = get_ident()
@@ -224,6 +223,10 @@ class Thread() :
         
         return self.running
             
+    def __del__(self) :
+        'The destructor, it calls dispose.'
+        self.terminate(forceful=True)
+        self.dispose()
 
     @property
     def flags(self) :
@@ -412,7 +415,6 @@ class Counter() :
         with self._lock :
             return self._value
     
-    @property
     def increment(self) -> None :
         'Acquires a lock, then increments the value.'
         with self._lock :
@@ -472,3 +474,98 @@ def to_threading(thread : Thread) -> threading_Thread :
 def to_multithreaded(thread : threading_Thread) -> Thread :
     _thread = Thread(thread._target, thread._args, thread._kwargs, thread.daemon)
     return _thread
+
+class EventTrigger() :
+    @overload
+    def __init__(self, thread : Thread, on_action : Literal['start', 'stop', 'crash']) : ...
+    
+    @overload
+    def __init__(self, triggerable : Barrier | Condition) : ...
+    
+    @overload
+    def __init__(self, counter : Counter, on_action : Literal['eq', 'ne', 'gt', 'lt', 'le', 'ge', 'zero', 'changed'], value : int | None = None) : ...
+
+    def __init__(self, status_object, arg1 : object = None, arg2 : object = None) :
+        self._triggered = False
+        self._condition = lambda: RuntimeError('Error assigning a condition.')
+        self._special = None
+        if isinstance(status_object, Barrier) :
+            self._condition = lambda: not status_object._locked
+            return
+        elif isinstance(status_object, Condition) :
+            self._condition = lambda: status_object.triggered
+            return
+        elif isinstance(status_object, Thread) :
+            match arg1 :
+                case 'start' :
+                    self._condition = lambda: status_object.running
+                case 'stop' :
+                    self._condition = lambda: status_object.finished
+                case 'crash' :
+                    self._condition = lambda: status_object.crashed
+                case other :
+                    if hasattr(status_object, other) :
+                        self._condition = lambda: getattr(status_object, other)
+                    else :
+                        raise TypeError(f'{status_object.__class__.__name__} does not have the attribute "{other}".')
+        elif isinstance(status_object, Counter) :
+            match arg1 :
+                case 'eq' :
+                    self._condition = lambda: status_object.value == arg2
+                case 'ne' :
+                    self._condition = lambda: status_object.value != arg2
+                case 'gt' :
+                    self._condition = lambda: status_object.value > arg2
+                case 'lt' :
+                    self._condition = lambda: status_object.value < arg2
+                case 'le' :
+                    self._condition = lambda: status_object.value <= arg2
+                case 'ge' :
+                    self._condition = lambda: status_object.value >= arg2
+                case'zero' :
+                    self._condition = lambda: status_object.value == 0
+                case 'changed' :
+                    self._last_value = status_object.value
+                    self._condition = status_object
+                    self._special = 'changed'
+                case unknown :
+                    raise TypeError(f'Invalid comparison operator "{unknown}".')
+    
+    @property
+    def triggered(self) -> bool :
+        if self._special == 'changed' :
+            if self._last_value != self._condition.value :
+                self._last_value = self._condition.value
+                return True
+        
+        if self._condition() :
+            self._triggered = True
+            return True
+        
+        return False
+
+def _schedule_checker(checker_class : "ScheduleHandler") -> None :
+    while True :
+        if checker_class._condition.triggered :
+            checker_class.event()
+        else :
+            sleep(0.05)
+
+class ScheduleHandler() :
+    def __init__(self, event : Callable, condition : EventTrigger) -> None :
+        self.event = event
+        self._condition = condition
+        self.schedule_thread = Thread(_schedule_checker, self, daemon=True)
+        self.schedule_thread.start()
+
+def schedule(event : Thread | Condition | Counter, condition : EventTrigger) -> ScheduleHandler :
+    if isinstance(event, Thread) :
+        return ScheduleHandler(lambda: event.start(), condition)
+    elif isinstance(event, Condition) :
+        return ScheduleHandler(lambda: event.trigger(), condition)
+    elif isinstance(event, Counter) :
+        return ScheduleHandler(lambda: event.increment(), condition)
+    
+    raise TypeError(f'Invalid event type. Expected Thread, Condition or Counter, got {type(event).__name__}.')
+
+# 19th of the 7th episode of adventure time
