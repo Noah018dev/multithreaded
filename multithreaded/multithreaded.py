@@ -53,37 +53,73 @@ def exiting() -> bool :
         return True
     return _exiting
 
-class _DictProxy() :
-    def __init__(self, dictname : str, key : object) :
-        self._dictname = dictname
-        self._key = key
+class ThreadLocalProxy:
+    def __init__(self, data):
+        self._data = data
 
-        globals()[self._dictname][self._key] = {}
-    
-    def __setitem__(self, key : object, value : object) :
-        globals()[self._dictname][self._key][key] = value
-    
-    def __getitem__(self, key : object) -> object :
-        return globals()[self._dictname][self._key][key]
+    def __getitem__(self, key):
+        if key not in self._data:
+          raise KeyError(f"Key '{key}' not found.")
+        return self._data[key]
 
-class _BasicDictProxy() :
-    def __init__(self, dictname : str):
-        self._dictname = dictname
-    
-    def __setitem__(self, key, value) :
-        globals()[self._dictname][key] = value
 
-    def __getitem__(self, key) :
-        return globals()[self._dictname][key]
+    def __setitem__(self, key, value):
+        print(f"Setting key: {key} to value: {value}")
+        self._data[key] = value
+
+    def __delitem__(self, key):
+       del self._data[key]
+
+    def __contains__(self, key):
+        return key in self._data
+
+    def __len__(self):
+        return len(self._data)
+
+    def __iter__(self):
+      return iter(self._data)
+
+    def __str__(self):
+        return str(self._data)
+
+    def __repr__(self):
+      return repr(self._data)
+
+    # Example of a custom method
+    def get_value_or_default(self, key, default=None):
+        return self._data.get(key, default)
+
+    def clear(self):
+        self._data.clear()
+
+    def items(self):
+        return self._data.items()
+
+    def keys(self):
+        return self._data.keys()
+
+    def values(self):
+        return self._data.values()
+
+    def pop(self, key, default=None):
+        return self._data.pop(key, default)
+
+    def popitem(self):
+        return self._data.popitem()
+
+    def update(self, other=None, **kwargs):
+        self._data.update(other, **kwargs)
 
 def _thread_runner(handle : int) :
     global thread_handles, wait_thread_init
 
-    logger.info(f'Started thread with native_id of {get_ident()}. Multithreaded id is {handle}.')
+    ident = get_ident()
+
+    logger.info(f'Started thread with native_id of {ident}. Multithreaded id is {handle}.')
 
     thread_handles[handle]['flags']['running'] = True
     thread_handles[handle]['flags']['started'] = True
-    thread_handles[handle]['native_id'] = get_ident()
+    thread_handles[handle]['native_id'] = ident
     
     wait_thread_init -= 1
 
@@ -175,6 +211,7 @@ class Thread() :
 
         wait_thread_init += 1
         start_new_thread(_thread_runner, (thread_assignments[self],))
+        wait_until(lambda: self.started)
     
     def join(self, timeout : float = -1) :
         'Waits until the thread is finished running. Raises TimeoutError if the thread is still running after the timeout in seconds.'
@@ -298,12 +335,11 @@ class Thread() :
     
     @property
     def locals(self) :
-        'The locals of the thread. Raises RuntimeError if the thread has not started yet, or if the thread has finished execution.'
+        'The locals of the thread. Raises RuntimeError if the thread has not started yet, or if the thread has finished execution. Modifying data here will modify the data in the other thread.'
         if self.native_id is None :
             raise RuntimeError('Thread not started yet, do not have the locals for it.')
 
-        return _DictProxy('_thread_data', self.native_id)
-
+        return thread_data(native_id=self.native_id)
 
 @atexit.register
 def _wait_for_threads() :
@@ -350,15 +386,17 @@ def force_stop_all() :
     interrupt_main(1)
     raise SystemExit
 
-def thread_data() :
+def thread_data(native_id : int | None = None) :
     'Returns the thread data for the current thread. This is local- per thread.'
-    if get_ident() == main_thread :
-        return _BasicDictProxy('main_thread_data')
+    if native_id is None :
+        native_id = get_ident()
+    if native_id == main_thread :
+        return ThreadLocalProxy(main_thread_data)
     
-    if not get_ident() in _thread_data :
+    if not native_id in _thread_data :
         _thread_data[get_ident()] = {}
 
-    return _DictProxy('_thread_data', get_ident())
+    return ThreadLocalProxy(_thread_data[native_id])
 
 highest_ids : dict = {}
 

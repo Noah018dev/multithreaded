@@ -16,9 +16,9 @@ from .multithreaded import (Thread, exiting, stop_all, force_stop_all,
                             to_multithreaded, EventTrigger,
                             ScheduleHandler, schedule)
 
-from .communication import module as communication
-from .synchronization import module as synchronization
-from .synchronization.module import *
+from . import communication
+from . import synchronization
+from .synchronization import *
 
 
 # mt_primatives removed. merged. it SUCKED, alright?
