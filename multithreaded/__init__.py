@@ -18,7 +18,10 @@ from .multithreaded import (Thread, exiting, stop_all, force_stop_all,
 
 from . import communication
 from . import synchronization
-from .synchronization import *
+from .synchronization import (Condition, call_lock, wait_until, 
+                            WaitOnCondition, Semaphore, 
+                            BoundedSemaphore, Barrier,
+                            Barrier, Mutex, Lock)
 
 
 # mt_primatives removed. merged. it SUCKED, alright?

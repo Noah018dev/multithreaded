@@ -31,7 +31,6 @@ def test_terminate() :
     thread = mt.Thread(wait_infinite, daemon=True)
     
     thread.start()
-    sleep(0.1)
 
     assert thread.running
 
@@ -44,7 +43,6 @@ def test_output() :
     thread = mt.Thread(double, 20)
 
     thread.start()
-    sleep(0.1)
 
     assert thread.output == 40
 
@@ -60,8 +58,13 @@ def test_weak_terminate() :
 
 def wait_on_lock(lock : mt.Mutex) :
     lock.acquire()
-    sleep(1)
+    sleep(0.5)
     lock.release()
+
+def set_locals(key, value) :
+    mt.thread_data()[key] = value
+    sleep(0.2)
+    return mt.thread_data()[key]
 
 def test_threaded_lock() :
     lock = mt.Mutex()
@@ -70,16 +73,23 @@ def test_threaded_lock() :
     thread2 = mt.Thread(wait_on_lock, lock)
 
     thread1.start()
-    sleep(0.1)
     thread2.start()
-    sleep(0.1)
     assert thread1.running
     assert thread2.running
 
-    sleep(1)
+    sleep(0.5)
     assert not thread1.running
     assert thread2.running
 
     thread2.terminate(forceful=True)
     sleep(0.1)
     assert not thread2.running
+
+def test_locals() :
+    thread = mt.Thread(set_locals, 'key', 'value')
+    thread.start()
+    sleep(0.1)
+    assert thread.locals['key'] == 'value'
+    thread.locals['key'] = 'value-2'
+    thread.join(1)
+    assert thread.output == 'value-2'
