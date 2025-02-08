@@ -94,7 +94,6 @@ class BoundedSemaphore(Semaphore) :
 
 class Barrier() :
     def __init__(self, locks_needed : int) :
-        self._locked = True
         self._locks_needed = locks_needed
         self.locks = 0
         self._received_broken = 0
@@ -111,3 +110,11 @@ class Barrier() :
 
         self._received_broken -= 1
         self.locks -= 1
+
+class CyclicBarrier(Barrier) :
+    def __init__(self, locks_needed : int) :
+        super().__init__(locks_needed)
+    
+    def push(self):
+        super().push()
+        self.locks = 0

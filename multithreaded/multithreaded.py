@@ -1,5 +1,5 @@
 from _thread import start_new_thread, get_ident, interrupt_main
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Mapping
 from time import sleep
 from typing import Literal, overload
 from contextlib import suppress
@@ -606,4 +606,74 @@ def schedule(event : Thread | Condition | Counter, condition : EventTrigger) -> 
     
     raise TypeError(f'Invalid event type. Expected Thread, Condition or Counter, got {type(event).__name__}.')
 
-# 19th of the 7th episode of adventure time
+def map(iterable : Iterable, function : Callable) -> list :
+    threads : list[Thread] = []
+    results = []
+
+    for item in iterable :
+        threads.append(Thread(function, item))
+    
+    for thread in threads :
+        thread.start()
+    
+    for thread in threads :
+        thread.join()
+        results.append(thread.output)
+    
+    return results
+
+def imap(iterable : Iterable, function : Callable) -> list[Promise] :
+    promises = []
+
+    for item in iterable :
+        promises.append(Promise(function, item))
+    
+    return promises
+
+def a_map(iterable : Iterable[Iterable], function : Callable) -> list :
+    threads : list[Thread] = []
+    results = []
+
+    for item in iterable :
+        threads.append(Thread(function, *item))
+    
+    for thread in threads :
+        thread.start()
+    
+    for thread in threads :
+        thread.join()
+        results.append(thread.output)
+    
+    return results
+
+def a_imap(iterable : Iterable[Iterable], function : Callable) -> list[Promise] :
+    promises = []
+
+    for item in iterable :
+        promises.append(Promise(function, *item))
+    
+    return promises
+
+def k_map(iterable : Iterable[Mapping], function : Callable) -> list :
+    threads : list[Thread] = []
+    results = []
+
+    for item in iterable :
+        threads.append(Thread(function, **item))
+    
+    for thread in threads :
+        thread.start()
+    
+    for thread in threads :
+        thread.join()
+        results.append(thread.output)
+    
+    return results
+
+def k_imap(iterable : Iterable[Mapping], function : Callable) -> list[Promise] :
+    promises = []
+
+    for item in iterable :
+        promises.append(Promise(function, **item))
+    
+    return promises
